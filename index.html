@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Player Test</title>
+    <!-- Video.js CSS -->
+    <link href="https://vjs.zencdn.net/8.5.2/video-js.css" rel="stylesheet" />
+
+    <!-- Daisyui -->
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.24/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="px-4 py-10">
+    <div class="mx-auto container h-auto space-y-4">
+        <h1 class="text-3xl font-bold">The One File Streaming Service</h1>
+
+        <div class="divider"></div>
+
+        <!-- New upload section -->
+        <div class="flex items-center gap-4">
+            <div class="space-y-4">
+                <div class="">
+                    <div class="text-3xl font-bold">Upload Video</div>
+                    <p>Upload a video file to get the HLS and DASH URLs (Max file size: 512MB)</p>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <input type="file" id="videoFile" accept="video/*"
+                        class="file-input file-input-bordered w-full max-w-xs" />
+                    <button id="upload-button" class="btn btn-primary" onclick="uploadVideo()">Upload Video</button>
+                </div>
+                <div id="uploadStatus" class="text-lg text-base-content"></div>
+            </div>
+
+            <div class="divider divider-horizontal"></div>
+
+            <div class="space-y-2">
+                <div class="text-3xl font-bold">Stream Type</div>
+                <div class="flex items-center gap-2">
+                    <input type="text" id="hlsUrl" placeholder="Enter HLS URL (e.g., .m3u8)"
+                        value="https://devstreaming-cdn.apple.com/videos/streaming/examples/adv_dv_atmos/main.m3u8"
+                        class="input input-bordered w-full max-w-xs">
+                    <button class="btn btn-primary" onclick="loadHLS()">Load HLS</button>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="text" id="dashUrl" placeholder="Enter DASH URL (e.g., .mpd)"
+                        value="https://bitmovin-a.akamaihd.net/content/MI201109210084_1/mpds/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.mpd"
+                        class="input input-bordered w-full max-w-xs">
+                    <button class="btn btn-primary" onclick="loadDASH()">Load DASH</button>
+                </div>
+            </div>
+        </div>
+        <video-js id="my-video" class="video-js vjs-big-play-centered" controls>
+            <p class="vjs-no-js">
+                To view this video please enable JavaScript, and consider upgrading to a web browser that supports
+                HTML5
+                video
+            </p>
+        </video-js>
+    </div>
+
+
+    <!-- Video.js -->
+    <script src="https://vjs.zencdn.net/8.5.2/video.min.js"></script>
+    <!-- hls.js -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <!-- videojs-dash -->
+    <script src="https://cdn.jsdelivr.net/npm/videojs-contrib-dash@5.1.1/dist/videojs-dash.min.js"></script>
+
+    <script defer>
+        const apiUrl = 'http://localhost:3000';
+        const player = videojs('my-video', {
+            fluid: true
+        });
+
+        function loadHLS() {
+            const url = document.getElementById('hlsUrl').value;
+            if (url) {
+                if (Hls.isSupported()) {
+                    const hls = new Hls();
+                    const video = document.querySelector('#my-video_html5_api');
+                    hls.loadSource(url);
+                    hls.attachMedia(video);
+                    hls.on(Hls.Events.MANIFEST_PARSED, function () {
+                        video.play();
+                    });
+                }
+                // For browsers with native HLS support
+                else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                    player.src({
+                        src: url,
+                        type: 'application/x-mpegURL'
+                    });
+                    player.play();
+                }
+            }
+        }
+
+        function loadDASH() {
+            const url = document.getElementById('dashUrl').value;
+            if (url) {
+                player.src({
+                    src: url,
+                    type: 'application/dash+xml'
+                });
+                player.play();
+            }
+        }
+        async function uploadVideo() {
+            const fileInput = document.getElementById('videoFile');
+            const statusDiv = document.getElementById('uploadStatus');
+            const uploadButton = document.getElementById('upload-button');
+
+            if (!fileInput.files.length) {
+                statusDiv.textContent = 'Please select a file first';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('video', fileInput.files[0]);
+
+            statusDiv.textContent = 'Uploading...';
+
+            try {
+                uploadButton.innerText = 'Uploading...';
+
+                const response = await fetch(apiUrl + '/api/videos', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                uploadButton.innerText = 'Upload Video';
+                if (!response.ok) {
+                    throw new Error('Upload failed');
+                }
+
+                const data = await response.json();
+
+                // Update the URL inputs with the received URLs
+                document.getElementById('hlsUrl').value = data.hlsUrl;
+                document.getElementById('dashUrl').value = data.dashUrl;
+
+                statusDiv.textContent = 'Upload successful!';
+
+                // Automatically load the HLS stream
+                loadHLS();
+            } catch (error) {
+                statusDiv.textContent = `Upload failed: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+
+</html>
